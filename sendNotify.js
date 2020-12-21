@@ -11,6 +11,14 @@ const $ = new Env();
 //注：此处设置github action用户填写到Settings-Secrets里面(Name输入PUSH_KEY)
 let SCKEY = '';
 
+
+// =======================================QQ酷推通知设置区域===========================================
+//此处填你申请的SKEY.
+//注：此处设置github action用户填写到Settings-Secrets里面(Name输入PUSH_SKEY)
+let SKEY = '';
+//此处填写私聊或群组推送默认私聊(send或group)
+let mode = 'send'; 
+
 // =======================================Bark App通知设置区域===========================================
 //此处填你BarkAPP的信息(IP/设备码，例如：https://api.day.app/XXXXXXXX)
 //注：此处设置github action用户填写到Settings-Secrets里面（Name输入BARK_PUSH）
@@ -43,6 +51,11 @@ let IGOT_PUSH_KEY = '';
 if (process.env.PUSH_KEY) {
   SCKEY = process.env.PUSH_KEY;
 }
+
+if (process.env.PUSH_SKEY) {
+  SKEY = process.env.PUSH_SKEY;
+}
+
 if (process.env.BARK_PUSH) {
   if(process.env.BARK_PUSH.indexOf('https') > -1 || process.env.BARK_PUSH.indexOf('http') > -1) {
     //兼容BARK自建用户
@@ -78,8 +91,9 @@ if (process.env.IGOT_PUSH_KEY) {
 }
 
 async function sendNotify(text, desp, params = {}) {
-  //提供五种通知
+  //提供六种通知
   await serverNotify(text, desp);
+  await CoolPush(text, desp);
   text = text.match(/.*?(?=\s?-)/g) ? text.match(/.*?(?=\s?-)/g)[0] : text;
   await BarkNotify(text, desp, params);
   await tgBotNotify(text, desp);
@@ -124,6 +138,41 @@ function serverNotify(text, desp, timeout = 2100) {
       }, timeout)
     } else {
       console.log('\n您未提供server酱的SCKEY，取消微信推送消息通知\n');
+      resolve()
+    }
+  })
+}
+
+function CoolPush(text, desp) {
+  return  new Promise(resolve => {
+    if (SKEY) {
+      const options = {
+        url: `https://push.xuthus.cc/${mode}/${SKEY}?c=${text}\n\n${desp}`,
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded'
+        }
+      }
+      $.post(options, (err, resp, data) => {
+        try {
+          if (err) {
+            console.log('\n发送通知调用API失败！！\n')
+            console.log(err);
+          } else {
+            data = JSON.parse(data);
+            if (data.code === 200) {
+              console.log('\n酷推发送通知消息成功\n')
+            } else if (data.code === 400) {
+              console.log('\nPUSH_SKEY 错误\n')
+            }
+          }
+        } catch (e) {
+          $.logErr(e, resp);
+        } finally {
+          resolve(data);
+        }
+      })
+    } else {
+      console.log('\n您未提供酷推的SKEY，取消QQ推送消息通知\n');
       resolve()
     }
   })
@@ -326,6 +375,7 @@ function iGotNotify(text, desp, params={}){
 module.exports = {
   sendNotify,
   SCKEY,
+  SKEY,
   BARK_PUSH,
   TG_BOT_TOKEN,
   TG_USER_ID,
